@@ -59,7 +59,7 @@ fi
 
 # Check npm/yarn Installation
 log "Checking npm/yarn installation..."
-if ! command -v npm &> /dev/null; then
+if ! command npm -v &> /dev/null; then
   error "npm not found. Please install npm."
 fi
 
