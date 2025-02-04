@@ -1,0 +1,16 @@
+{
+    "github": {
+      "repository_url": "https://github.com/yourusername/your-nextjs-project.git",
+      "branch": "main"
+    },
+    "node": {
+      "required_version": "23"
+    },
+    "pm2": {
+      "app_name": "nextjs-app"
+    },
+    "logging": {
+      "log_file": "/var/log/nextjs-deploy.log"
+    }
+  }
+  
