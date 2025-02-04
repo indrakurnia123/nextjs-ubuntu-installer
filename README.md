@@ -187,5 +187,5 @@ For support:
 ## Author
 
 Your Name
-- GitHub: [@indrakurnia123](https://github.com/yourusername)
+- GitHub: [@indrakurnia123](https://github.com/indrakurnia123)
 - Email: indrakurnia768@gmail.com
