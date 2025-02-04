@@ -20,6 +20,7 @@ GITHUB_BRANCH=$(jq -r '.github.branch' "$CONFIG_FILE")
 NODE_VERSION=$(jq -r '.node.required_version' "$CONFIG_FILE")
 PM2_APP_NAME=$(jq -r '.pm2.app_name' "$CONFIG_FILE")
 LOG_FILE=$(jq -r '.logging.log_file' "$CONFIG_FILE")
+PROJECT_DIR="/var/www/$(basename "$GITHUB_REPO_URL" .git)"
 
 # Function to log messages
 log() {
@@ -69,12 +70,17 @@ if ! command -v pm2 &> /dev/null; then
   sudo npm install -g pm2
 fi
 
+# Create Project Directory
+log "Creating project directory at $PROJECT_DIR..."
+sudo mkdir -p "$PROJECT_DIR"
+sudo chown -R $(whoami):$(whoami) "$PROJECT_DIR"
+
 # Clone Repository
 log "Cloning repository from $GITHUB_REPO_URL..."
-git clone -b "$GITHUB_BRANCH" "$GITHUB_REPO_URL" nextjs-project || error "Failed to clone repository"
+git clone -b "$GITHUB_BRANCH" "$GITHUB_REPO_URL" "$PROJECT_DIR" || error "Failed to clone repository"
 
 # Navigate to project directory
-cd nextjs-project || error "Failed to navigate to project directory"
+cd "$PROJECT_DIR" || error "Failed to navigate to project directory"
 
 # Install Project Dependencies
 log "Installing project dependencies..."
@@ -83,11 +89,6 @@ npm install || error "Failed to install project dependencies"
 # Build Project
 log "Building project..."
 npm run build || error "Failed to build project"
-
-# Transfer Files to VPS (Assuming the script is run on the VPS)
-# If transferring from a local machine to the VPS, use SCP or similar
-log "Transferring files to VPS..."
-# Example: scp -r build user@vps_ip:/path/to/deploy
 
 # Stop Existing PM2 Process
 log "Stopping existing PM2 process..."
