@@ -4,13 +4,23 @@
 CONFIG_FILE="config.json"
 SECRETS_FILE="secrets.json"
 
+# Ensure log file directory exists
+LOG_DIR="/var/log"
+LOG_FILE="$LOG_DIR/nextjs-deploy.log"
+
+if [[ ! -d "$LOG_DIR" ]]; then
+  sudo mkdir -p "$LOG_DIR"
+  sudo touch "$LOG_FILE"
+  sudo chmod 644 "$LOG_FILE"
+fi
+
 if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "Error: $CONFIG_FILE not found" | tee -a "$(jq -r '.logging.log_file' "$CONFIG_FILE")"
+  echo "Error: $CONFIG_FILE not found" | tee -a "$LOG_FILE"
   exit 1
 fi
 
 if [[ ! -f "$SECRETS_FILE" ]]; then
-  echo "Error: $SECRETS_FILE not found" | tee -a "$(jq -r '.logging.log_file' "$CONFIG_FILE")"
+  echo "Error: $SECRETS_FILE not found" | tee -a "$LOG_FILE"
   exit 1
 fi
 
@@ -19,8 +29,6 @@ GITHUB_REPO_URL=$(jq -r '.github.repository_url' "$CONFIG_FILE")
 GITHUB_BRANCH=$(jq -r '.github.branch' "$CONFIG_FILE")
 NODE_VERSION=$(jq -r '.node.required_version' "$CONFIG_FILE")
 PM2_APP_NAME=$(jq -r '.pm2.app_name' "$CONFIG_FILE")
-LOG_FILE=$(jq -r '.logging.log_file' "$CONFIG_FILE")
-PROJECT_DIR="/var/www/$(basename "$GITHUB_REPO_URL" .git)"
 
 # Function to log messages
 log() {
@@ -70,10 +78,16 @@ if ! command -v pm2 &> /dev/null; then
   sudo npm install -g pm2
 fi
 
-# Create Project Directory
-log "Creating project directory at $PROJECT_DIR..."
+# Define project directory
+PROJECT_DIR="/var/www/nama-project"
+
+# Ensure project directory exists
+if [[ -d "$PROJECT_DIR" ]]; then
+  log "Project directory $PROJECT_DIR already exists. Removing old files..."
+  sudo rm -rf "$PROJECT_DIR"
+fi
+
 sudo mkdir -p "$PROJECT_DIR"
-sudo chown -R $(whoami):$(whoami) "$PROJECT_DIR"
 
 # Clone Repository
 log "Cloning repository from $GITHUB_REPO_URL..."
