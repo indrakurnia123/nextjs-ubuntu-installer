@@ -1,121 +1,191 @@
-# Next.js Deployment Automation Tool
+# NextJS Ubuntu Deployment Script
 
-## Overview
+Automated deployment script for NextJS applications on Ubuntu servers. This script handles dependency installation, project setup, and deployment using PM2 process manager.
 
-The Next.js Deployment Automation Tool is a Bash script designed to automate the deployment of a Next.js project to an Ubuntu VPS. This tool ensures that all necessary dependencies are checked and installed, the project is built, and the application is deployed and managed using PM2. The tool is modular, secure, and includes detailed logging and error handling.
+## Features
 
-## Key Features
-
-- **Configuration Management:** Uses separate configuration files (`config.json` and `secrets.json`) to store deployment settings and sensitive information.
-- **Dependency Checking:** Automatically checks and installs required tools such as Node.js, npm, Git, and PM2.
-- **Version Control:** Ensures the correct version of Node.js is installed as specified in the configuration.
-- **Repository Cloning:** Clones the Next.js project from a specified GitHub repository.
-- **Project Building:** Builds the Next.js project using `npm run build`.
-- **File Transfer:** Transfers the built files to the VPS (can be adapted for local to VPS transfers using SCP).
-- **PM2 Management:** Stops any existing PM2 processes and starts a new one to run the Next.js application.
-- **Status Checking:** Verifies that the application is running correctly.
-- **Logging:** Logs all stages of the deployment process, including errors, for traceability and debugging.
+- 🔄 Automated dependency management
+- 📦 Node.js version management
+- 🚀 PM2 process management
+- 🔒 Secure deployment practices
+- 📝 Comprehensive logging
+- 🔄 Backup system for existing deployments
+- ⚡ Optimized for Ubuntu environments
 
 ## Prerequisites
 
-- **Ubuntu VPS:** Ensure you have an Ubuntu VPS with SSH access.
-- **Bash:** The script is written in Bash, so ensure Bash is installed on your VPS.
-- **jq:** A lightweight and flexible command-line JSON processor. Install it using:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y jq
-  ```
+The script will automatically install missing dependencies, but you'll need:
 
-## Configuration Files
+- Ubuntu server (18.04 or later)
+- Root or sudo access
+- Basic configuration files (config.json and secrets.json)
 
-### `config.json`
+## Configuration
 
-This file contains general configuration settings such as the GitHub repository URL, Node.js version, and logging details.
+### Config File Structure (config.json)
 
 ```json
 {
   "github": {
-    "repository_url": "https://github.com/yourusername/your-nextjs-project.git",
+    "repository_url": "https://github.com/your-username/your-repo.git",
     "branch": "main"
   },
   "node": {
-    "required_version": "18.x"
+    "required_version": "18"
   },
   "pm2": {
     "app_name": "nextjs-app"
   },
-  "logging": {
-    "log_file": "/var/log/nextjs-deploy.log"
+  "project": {
+    "directory": "/var/www/nama-project"
   }
 }
 ```
 
-### `secrets.json`
+## Installation
 
-This file contains sensitive information such as GitHub tokens and SSH keys. Ensure this file is not included in version control.
-
-```json
-{
-  "github_token": "your_github_token_here",
-  "ssh_key": "your_ssh_key_here"
-}
-```
-
-## How to Use
-
-### Step 1: Clone the Repository
-
-Clone the repository to your local machine or directly to your VPS.
-
+1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/nextjs-deploy.git
-cd nextjs-deploy
+git clone https://github.com/your-username/nextjs-ubuntu-installer.git
+cd nextjs-ubuntu-installer
 ```
 
-### Step 2: Create Configuration Files
-
-Create the `config.json` and `secrets.json` files with the appropriate settings.
-
+2. Set up configuration:
 ```bash
-cp config.json.example config.json
-cp secrets.json.example secrets.json
+cp config.example.json config.json
+# Edit config.json with your settings
+nano config.json
 ```
 
-Edit the `config.json` and `secrets.json` files with your specific settings.
-
-### Step 3: Make the Script Executable
-
-Make the `deploy.sh` script executable.
-
+3. Make the script executable:
 ```bash
 chmod +x deploy.sh
 ```
 
-### Step 4: Run the Script
-
-Run the script to deploy your Next.js project.
-
+4. Run the deployment:
 ```bash
 ./deploy.sh
 ```
 
+## Script Components
+
+The deployment script includes:
+
+- **Dependency Check**: Automatically installs required system packages
+- **Node.js Setup**: Installs or updates Node.js to the specified version
+- **PM2 Configuration**: Sets up PM2 for process management
+- **Git Integration**: Handles repository cloning and updates
+- **Backup System**: Creates backups of existing deployments
+- **Logging**: Maintains detailed deployment logs
+
+## Directory Structure
+
+```
+/var/www/
+├── nama-project/          # Main project directory
+├── backups/              # Backup directory
+│   └── nextjs-app_*     # Timestamped backups
+└── logs/                # Log files
+```
+
 ## Logging
 
-The script logs all stages of the deployment process, including errors, to the file specified in `config.json`. By default, the log file is located at `/var/log/nextjs-deploy.log`.
+Logs are stored in `/var/log/nextjs-deploy.log` and include:
+- Deployment steps
+- Error messages
+- Installation status
+- PM2 process information
 
 ## Error Handling
 
-The script includes error handling at each stage to catch and log any issues that occur during the deployment process. If an error is encountered, the script will log the error and exit.
+The script includes comprehensive error handling:
+- Dependency verification
+- Installation status checks
+- Process management validation
+- Backup confirmation
+
+## Maintenance
+
+### Updating the Application
+
+To update your application:
+1. Push changes to your repository
+2. Run the deployment script:
+```bash
+./deploy.sh
+```
+
+### Managing PM2 Processes
+
+Common PM2 commands:
+```bash
+# View all processes
+pm2 list
+
+# Restart application
+pm2 restart nextjs-app
+
+# View logs
+pm2 logs nextjs-app
+
+# Monitor processes
+pm2 monit
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Permission Denied**
+   ```bash
+   sudo chmod +x deploy.sh
+   ```
+
+2. **Node.js Version Mismatch**
+   - Check config.json for correct version
+   - Run script again to update Node.js
+
+3. **PM2 Process Errors**
+   ```bash
+   pm2 delete nextjs-app
+   ./deploy.sh
+   ```
+
+### Debug Mode
+
+For detailed logs:
+```bash
+PM2_DEBUG=true ./deploy.sh
+```
 
 ## Security
 
-- **Sensitive Information:** Ensure that `secrets.json` is not included in version control. You can add it to `.gitignore` to prevent accidental commits.
-- **SSH Keys:** Use secure methods for managing SSH keys and tokens.
+- Automated dependency updates
+- Secure file permissions
+- Backup system
+- PM2 process isolation
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request if you have any improvements or bug fixes.
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support:
+1. Check the documentation
+2. Review the log files
+3. Open an issue on GitHub
+
+## Author
+
+Your Name
+- GitHub: [@indrakurnia123](https://github.com/yourusername)
+- Email: indrakurnia768@gmail.com

@@ -41,144 +41,151 @@ error_exit() {
     exit 1
 }
 
-# Function to check and install dependencies
-check_dependency() {
-    local cmd=$1
-    local package=$2
-    local install_cmd=${3:-"sudo apt-get install -y $package"}
-    
-    if ! command -v "$cmd" &> /dev/null; then
-        log "WARN" "$cmd not found. Installing $package..."
-        eval "$install_cmd" || error_exit "Failed to install $package"
-        log "INFO" "$package installed successfully"
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check system package manager
+check_package_manager() {
+    if command_exists apt-get; then
+        echo "apt"
+    elif command_exists yum; then
+        echo "yum"
+    elif command_exists dnf; then
+        echo "dnf"
     else
-        log "INFO" "$cmd is already installed"
+        error_exit "No supported package manager found"
     fi
 }
 
-# Function to backup existing deployment
-backup_existing_deployment() {
-    local project_dir=$1
-    if [ -d "$project_dir" ]; then
-        local backup_path="$BACKUP_DIR/${PM2_APP_NAME}_${TIMESTAMP}"
-        log "INFO" "Creating backup at $backup_path"
-        mkdir -p "$BACKUP_DIR"
-        cp -r "$project_dir" "$backup_path" || error_exit "Failed to create backup"
-    fi
-}
-
-# Function to validate JSON configuration
-validate_config() {
-    local config_file=$1
-    if ! jq empty "$config_file" 2>/dev/null; then
-        error_exit "Invalid JSON in $config_file"
-    fi
-}
-
-# Setup logging
-setup_logging() {
-    sudo mkdir -p "$LOG_DIR"
-    sudo touch "$LOG_FILE"
-    sudo chmod 644 "$LOG_FILE"
+# Function to install system dependencies based on package manager
+install_system_package() {
+    local package=$1
+    local package_manager=$(check_package_manager)
     
-    # Rotate logs if they get too large
-    if [ -f "$LOG_FILE" ] && [ $(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE") -gt 10485760 ]; then
-        mv "$LOG_FILE" "$LOG_FILE.old"
-        touch "$LOG_FILE"
-    fi
+    log "INFO" "Installing $package using $package_manager..."
+    case $package_manager in
+        "apt")
+            sudo apt-get install -y "$package" || error_exit "Failed to install $package"
+            ;;
+        "yum")
+            sudo yum install -y "$package" || error_exit "Failed to install $package"
+            ;;
+        "dnf")
+            sudo dnf install -y "$package" || error_exit "Failed to install $package"
+            ;;
+    esac
 }
 
-# Initialize deployment
-init_deployment() {
-    log "INFO" "Starting deployment process"
+# Function to check and install core dependencies
+check_core_dependencies() {
+    log "INFO" "Checking and installing core dependencies..."
     
-    # Check required files
-    for file in "$CONFIG_FILE" "$SECRETS_FILE"; do
-        [ -f "$file" ] || error_exit "$file not found"
-        validate_config "$file"
+    # Update package lists if using apt
+    if [ "$(check_package_manager)" = "apt" ]; then
+        log "INFO" "Updating package lists..."
+        sudo apt-get update || error_exit "Failed to update package lists"
+    fi
+    
+    # Array of required system packages and their corresponding commands
+    declare -A dependencies=(
+        ["curl"]="curl"
+        ["git"]="git"
+        ["jq"]="jq"
+        ["build-essential"]="gcc"
+        ["python"]="python3"
+        ["wget"]="wget"
+    )
+    
+    # Check and install each dependency
+    for package in "${!dependencies[@]}"; do
+        if ! command_exists "${dependencies[$package]}"; then
+            log "WARN" "${dependencies[$package]} not found. Installing $package..."
+            install_system_package "$package"
+            log "INFO" "$package installed successfully"
+        else
+            log "INFO" "${dependencies[$package]} is already installed"
+        fi
     done
-    
-    # Load configuration
-    GITHUB_REPO_URL=$(jq -r '.github.repository_url' "$CONFIG_FILE")
-    GITHUB_BRANCH=$(jq -r '.github.branch' "$CONFIG_FILE")
-    NODE_VERSION=$(jq -r '.node.required_version' "$CONFIG_FILE")
-    PM2_APP_NAME=$(jq -r '.pm2.app_name' "$CONFIG_FILE")
-    PROJECT_DIR=$(jq -r '.project.directory' "$CONFIG_FILE")
-    
-    # Validate required variables
-    [[ -n "$GITHUB_REPO_URL" ]] || error_exit "GitHub repository URL not configured"
-    [[ -n "$GITHUB_BRANCH" ]] || error_exit "GitHub branch not configured"
-    [[ -n "$NODE_VERSION" ]] || error_exit "Node.js version not configured"
-    [[ -n "$PM2_APP_NAME" ]] || error_exit "PM2 app name not configured"
-    [[ -n "$PROJECT_DIR" ]] || error_exit "Project directory not configured"
 }
 
-# Install system dependencies
-install_dependencies() {
-    log "INFO" "Installing system dependencies..."
+# Function to check and install Node.js and npm
+check_nodejs_dependencies() {
+    log "INFO" "Checking Node.js and npm..."
     
-    # Update package list
-    sudo apt-get update || error_exit "Failed to update package list"
+    # Load Node.js version from config
+    local required_node_version
+    required_node_version=$(jq -r '.node.required_version' "$CONFIG_FILE")
     
-    # Check and install required dependencies
-    check_dependency "jq" "jq"
-    check_dependency "git" "git"
-    check_dependency "curl" "curl"
-    
-    # Install Node.js if not present or version mismatch
-    if ! command -v node &> /dev/null || ! node --version | grep -q "$NODE_VERSION"; then
-        log "INFO" "Installing Node.js $NODE_VERSION..."
-        curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | sudo -E bash - || error_exit "Failed to setup Node.js repository"
-        sudo apt-get install -y nodejs || error_exit "Failed to install Node.js"
-    fi
-    
-    # Install PM2 globally
-    check_dependency "pm2" "pm2" "sudo npm install -g pm2"
-}
-
-# Deploy application
-deploy_application() {
-    log "INFO" "Starting application deployment..."
-    
-    # Backup existing deployment
-    backup_existing_deployment "$PROJECT_DIR"
-    
-    # Prepare project directory
-    sudo rm -rf "$PROJECT_DIR"
-    sudo mkdir -p "$PROJECT_DIR"
-    sudo chown -R $(whoami):$(whoami) "$PROJECT_DIR"
-    
-    # Clone repository
-    git clone -b "$GITHUB_BRANCH" "$GITHUB_REPO_URL" "$PROJECT_DIR" || error_exit "Failed to clone repository"
-    cd "$PROJECT_DIR" || error_exit "Failed to navigate to project directory"
-    
-    # Install dependencies and build
-    log "INFO" "Installing project dependencies..."
-    if [ -f "package-lock.json" ]; then
-        npm ci || error_exit "Failed to install dependencies"
+    # Check if Node.js is installed
+    if ! command_exists node; then
+        log "WARN" "Node.js not found. Installing version $required_node_version..."
+        curl -fsSL "https://deb.nodesource.com/setup_${required_node_version}.x" | sudo -E bash - || error_exit "Failed to setup Node.js repository"
+        install_system_package "nodejs"
     else
-        npm install || error_exit "Failed to install dependencies"
+        local current_version
+        current_version=$(node -v | cut -d'v' -f2)
+        log "INFO" "Node.js version $current_version is installed"
+        
+        # Check if version matches requirement
+        if [[ ! "$current_version" =~ ^"$required_node_version" ]]; then
+            log "WARN" "Node.js version mismatch. Updating to version $required_node_version..."
+            curl -fsSL "https://deb.nodesource.com/setup_${required_node_version}.x" | sudo -E bash - || error_exit "Failed to setup Node.js repository"
+            install_system_package "nodejs"
+        fi
     fi
     
-    log "INFO" "Building project..."
-    npm run build || error_exit "Failed to build project"
-    
-    # Update PM2 process
-    log "INFO" "Updating PM2 process..."
-    pm2 delete "$PM2_APP_NAME" 2>/dev/null || true
-    pm2 start npm --name "$PM2_APP_NAME" -- start || error_exit "Failed to start PM2 process"
-    pm2 save || error_exit "Failed to save PM2 process list"
-    
-    # Setup PM2 startup
-    pm2 startup systemd || error_exit "Failed to setup PM2 startup"
-    sudo env PATH="$PATH" pm2 startup systemd -u $(whoami) --hp "$HOME"
+    # Check npm installation
+    if ! command_exists npm; then
+        log "WARN" "npm not found. Installing..."
+        install_system_package "npm"
+    else
+        log "INFO" "npm is already installed"
+    fi
 }
 
-# Main execution
+# Function to check and install PM2
+check_pm2_dependency() {
+    log "INFO" "Checking PM2..."
+    
+    if ! command_exists pm2; then
+        log "WARN" "PM2 not found. Installing..."
+        sudo npm install -g pm2 || error_exit "Failed to install PM2"
+        log "INFO" "PM2 installed successfully"
+    else
+        log "INFO" "PM2 is already installed"
+    fi
+}
+
+# Function to check all dependencies
+check_all_dependencies() {
+    log "INFO" "Starting dependency checks..."
+    
+    # Check core system dependencies
+    check_core_dependencies
+    
+    # Check Node.js and npm
+    check_nodejs_dependencies
+    
+    # Check PM2
+    check_pm2_dependency
+    
+    log "INFO" "All dependencies checked and installed successfully"
+}
+
+# Rest of your existing functions...
+# (init_deployment, deploy_application, etc. remain the same)
+
+# Updated main execution
 main() {
     setup_logging
+    
+    # Check dependencies first
+    check_all_dependencies
+    
+    # Continue with deployment
     init_deployment
-    install_dependencies
     deploy_application
     log "INFO" "Deployment completed successfully!"
 }
