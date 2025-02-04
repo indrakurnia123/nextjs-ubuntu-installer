@@ -46,7 +46,7 @@ The script will automatically install missing dependencies, but you'll need:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/your-username/nextjs-ubuntu-installer.git
+git clone git@github.com:indrakurnia123/nextjs-ubuntu-installer.git
 cd nextjs-ubuntu-installer
 ```
 
