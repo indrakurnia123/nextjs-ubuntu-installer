@@ -192,6 +192,79 @@ validate_config_files() {
     fi
 }
 
+# Function to initialize deployment
+init_deployment() {
+    log "INFO" "Initializing deployment..."
+    
+    # Load configuration
+    local github_repo_url
+    local github_branch
+    local project_name
+    
+    github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
+    github_branch=$(jq -r '.github.branch' "$CONFIG_FILE")
+    project_name=$(basename "$github_repo_url" .git)
+    
+    # Define project directory
+    readonly PROJECT_DIR="/var/www/$project_name"
+    
+    # Ensure project directory exists
+    if [ -d "$PROJECT_DIR" ]; then
+        log "WARN" "Project directory $PROJECT_DIR already exists. Backing up old files..."
+        mkdir -p "$BACKUP_DIR"
+        sudo mv "$PROJECT_DIR" "$BACKUP_DIR/$project_name-$TIMESTAMP" || error_exit "Failed to backup old project directory"
+    fi
+    
+    sudo mkdir -p "$PROJECT_DIR"
+    sudo chown -R $(whoami):$(whoami) "$PROJECT_DIR"
+    
+    log "INFO" "Project directory $PROJECT_DIR created successfully"
+}
+
+# Function to deploy application
+deploy_application() {
+    log "INFO" "Deploying application..."
+    
+    # Load configuration
+    local github_repo_url
+    local github_branch
+    local project_name
+    
+    github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
+    github_branch=$(jq -r '.github.branch' "$CONFIG_FILE")
+    project_name=$(basename "$github_repo_url" .git)
+    
+    # Define project directory
+    readonly PROJECT_DIR="/var/www/$project_name"
+    
+    # Clone Repository
+    log "INFO" "Cloning repository from $github_repo_url..."
+    git clone -b "$github_branch" "$github_repo_url" "$PROJECT_DIR" || error_exit "Failed to clone repository"
+    
+    # Navigate to project directory
+    cd "$PROJECT_DIR" || error_exit "Failed to navigate to project directory"
+    
+    # Install Project Dependencies
+    log "INFO" "Installing project dependencies..."
+    npm install || error_exit "Failed to install project dependencies"
+    
+    # Build Project
+    log "INFO" "Building project..."
+    npm run build || error_exit "Failed to build project"
+    
+    # Stop Existing PM2 Process
+    log "INFO" "Stopping existing PM2 process..."
+    pm2 stop "$PM2_APP_NAME" || log "INFO" "No existing PM2 process found"
+    
+    # Start New PM2 Process
+    log "INFO" "Starting new PM2 process..."
+    pm2 start npm --name "$PM2_APP_NAME" -- start || error_exit "Failed to start PM2 process"
+    
+    # Check Application Status
+    log "INFO" "Checking application status..."
+    pm2 status "$PM2_APP_NAME" || error_exit "Failed to check application status"
+}
+
 # Updated main execution
 main() {
     setup_logging
