@@ -174,12 +174,28 @@ check_all_dependencies() {
     log "INFO" "All dependencies checked and installed successfully"
 }
 
-# Rest of your existing functions...
-# (init_deployment, deploy_application, etc. remain the same)
+# Function to setup logging
+setup_logging() {
+    log "INFO" "Setting up logging..."
+    mkdir -p "$LOG_DIR" || error_exit "Failed to create log directory"
+    touch "$LOG_FILE" || error_exit "Failed to create log file"
+}
+
+# Function to validate configuration files
+validate_config_files() {
+    log "INFO" "Validating configuration files..."
+    if [ ! -f "$CONFIG_FILE" ]; then
+        error_exit "Configuration file $CONFIG_FILE not found"
+    fi
+    if [ ! -f "$SECRETS_FILE" ]; then
+        error_exit "Secrets file $SECRETS_FILE not found"
+    fi
+}
 
 # Updated main execution
 main() {
     setup_logging
+    validate_config_files
     
     # Check dependencies first
     check_all_dependencies
