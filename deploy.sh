@@ -201,7 +201,7 @@ init_deployment() {
     GITHUB_BRANCH=$(jq -r '.github.branch' "$CONFIG_FILE")
     NODE_VERSION=$(jq -r '.node.required_version' "$CONFIG_FILE")
     PM2_APP_NAME=$(jq -r '.pm2.app_name' "$CONFIG_FILE")
-    PROJECT_DIR="/var/www/nama-project"
+    PROJECT_DIR=$(jq -r '.project.directory' "$CONFIG_FILE")
     
     # Ensure project directory exists
     if [[ -d "$PROJECT_DIR" ]]; then
