@@ -196,16 +196,11 @@ validate_config_files() {
 init_deployment() {
     log "INFO" "Initializing deployment..."
     
-    # Load configuration
+    # Load project directory from config
     local github_repo_url
-    local github_branch
-    local project_name
-    
     github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
-    github_branch=$(jq -r '.github.branch' "$CONFIG_FILE")
+    local project_name
     project_name=$(basename "$github_repo_url" .git)
-    
-    # Define project directory
     readonly PROJECT_DIR="/var/www/$project_name"
     
     # Ensure project directory exists
@@ -225,42 +220,36 @@ init_deployment() {
 deploy_application() {
     log "INFO" "Deploying application..."
     
-    # Load configuration
+    # Load GitHub repository URL and branch from config
     local github_repo_url
-    local github_branch
-    local project_name
-    
     github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
+    local github_branch
     github_branch=$(jq -r '.github.branch' "$CONFIG_FILE")
-    project_name=$(basename "$github_repo_url" .git)
     
-    # Define project directory
-    readonly PROJECT_DIR="/var/www/$project_name"
-    
-    # Clone Repository
+    # Clone repository
     log "INFO" "Cloning repository from $github_repo_url..."
     git clone -b "$github_branch" "$github_repo_url" "$PROJECT_DIR" || error_exit "Failed to clone repository"
     
     # Navigate to project directory
     cd "$PROJECT_DIR" || error_exit "Failed to navigate to project directory"
     
-    # Install Project Dependencies
+    # Install project dependencies
     log "INFO" "Installing project dependencies..."
     npm install || error_exit "Failed to install project dependencies"
     
-    # Build Project
+    # Build project
     log "INFO" "Building project..."
     npm run build || error_exit "Failed to build project"
     
-    # Stop Existing PM2 Process
+    # Stop existing PM2 process
     log "INFO" "Stopping existing PM2 process..."
     pm2 stop "$PM2_APP_NAME" || log "INFO" "No existing PM2 process found"
     
-    # Start New PM2 Process
+    # Start new PM2 process
     log "INFO" "Starting new PM2 process..."
     pm2 start npm --name "$PM2_APP_NAME" -- start || error_exit "Failed to start PM2 process"
     
-    # Check Application Status
+    # Check application status
     log "INFO" "Checking application status..."
     pm2 status "$PM2_APP_NAME" || error_exit "Failed to check application status"
 }
