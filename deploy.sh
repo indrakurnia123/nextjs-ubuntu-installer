@@ -196,18 +196,17 @@ validate_config_files() {
 init_deployment() {
     log "INFO" "Initializing deployment..."
     
-    # Load project directory from config
-    local github_repo_url
-    github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
-    local project_name
-    project_name=$(basename "$github_repo_url" .git)
-    readonly PROJECT_DIR="/var/www/$project_name"
+    # Load configuration
+    GITHUB_REPO_URL=$(jq -r '.github.repository_url' "$CONFIG_FILE")
+    GITHUB_BRANCH=$(jq -r '.github.branch' "$CONFIG_FILE")
+    NODE_VERSION=$(jq -r '.node.required_version' "$CONFIG_FILE")
+    PM2_APP_NAME=$(jq -r '.pm2.app_name' "$CONFIG_FILE")
+    PROJECT_DIR="/var/www/nama-project"
     
     # Ensure project directory exists
-    if [ -d "$PROJECT_DIR" ]; then
-        log "WARN" "Project directory $PROJECT_DIR already exists. Backing up old files..."
-        mkdir -p "$BACKUP_DIR"
-        sudo mv "$PROJECT_DIR" "$BACKUP_DIR/$project_name-$TIMESTAMP" || error_exit "Failed to backup old project directory"
+    if [[ -d "$PROJECT_DIR" ]]; then
+        log "INFO" "Project directory $PROJECT_DIR already exists. Removing old files..."
+        sudo rm -rf "$PROJECT_DIR"
     fi
     
     sudo mkdir -p "$PROJECT_DIR"
@@ -220,36 +219,34 @@ init_deployment() {
 deploy_application() {
     log "INFO" "Deploying application..."
     
-    # Load GitHub repository URL and branch from config
-    local github_repo_url
-    github_repo_url=$(jq -r '.github.repository_url' "$CONFIG_FILE")
-    local github_branch
-    github_branch=$(jq -r '.github.branch' "$CONFIG_FILE")
-    
-    # Clone repository
-    log "INFO" "Cloning repository from $github_repo_url..."
-    git clone -b "$github_branch" "$github_repo_url" "$PROJECT_DIR" || error_exit "Failed to clone repository"
+    # Clone Repository
+    log "INFO" "Cloning repository from $GITHUB_REPO_URL..."
+    git clone -b "$GITHUB_BRANCH" "$GITHUB_REPO_URL" "$PROJECT_DIR" || error_exit "Failed to clone repository"
     
     # Navigate to project directory
     cd "$PROJECT_DIR" || error_exit "Failed to navigate to project directory"
     
-    # Install project dependencies
+    # Install Project Dependencies
     log "INFO" "Installing project dependencies..."
     npm install || error_exit "Failed to install project dependencies"
     
-    # Build project
+    # Build Project
     log "INFO" "Building project..."
     npm run build || error_exit "Failed to build project"
     
-    # Stop existing PM2 process
+    # Stop Existing PM2 Process
     log "INFO" "Stopping existing PM2 process..."
-    pm2 stop "$PM2_APP_NAME" || log "INFO" "No existing PM2 process found"
+    if pm2 list | grep -q "$PM2_APP_NAME"; then
+        pm2 stop "$PM2_APP_NAME" || error_exit "Failed to stop PM2 process"
+    else
+        log "INFO" "No existing PM2 process found for $PM2_APP_NAME"
+    fi
     
-    # Start new PM2 process
+    # Start New PM2 Process
     log "INFO" "Starting new PM2 process..."
     pm2 start npm --name "$PM2_APP_NAME" -- start || error_exit "Failed to start PM2 process"
     
-    # Check application status
+    # Check Application Status
     log "INFO" "Checking application status..."
     pm2 status "$PM2_APP_NAME" || error_exit "Failed to check application status"
 }
