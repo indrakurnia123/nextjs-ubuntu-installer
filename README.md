@@ -186,6 +186,6 @@ For support:
 
 ## Author
 
-Your Name
+Indra Kurnia Maulana
 - GitHub: [@indrakurnia123](https://github.com/indrakurnia123)
 - Email: indrakurnia768@gmail.com
